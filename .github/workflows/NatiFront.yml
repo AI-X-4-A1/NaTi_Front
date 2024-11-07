@@ -2,7 +2,7 @@ name: Create Release and Deploy
 
 on:
   schedule:
-    - cron: '18 8 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
+    - cron: '27 8 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
   push:
     branches:
       - dev  # dev 브랜치에서만 실행
@@ -111,11 +111,11 @@ jobs:
             echo "Releases branch already exists."
           fi
 
-      # 13. SSH 키 설정 (GitHub 리포지토리에 접근할 때 사용)
-      - name: Set up SSH key for GitHub
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      # 13. Git 사용자 설정 (커밋을 위한)
+      - name: Set up Git user for commit
+        run: |
+          git config --global user.email "power4206@gmail.com"
+          git config --global user.name "KHY90"
 
       # 14. dev 브랜치를 main 브랜치에 병합
       - name: Merge dev branch into main
