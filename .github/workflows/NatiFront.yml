@@ -3,7 +3,7 @@ name: Create Release and Deploy
 on:
   schedule:
   # - cron: '0 0 * * *'  # 매일 0시(UTC)에 워크플로우 실행
-    - cron: '30 6 * * *'
+    - cron: '50 6 * * *'
   push:
     branches:
       - Releases
