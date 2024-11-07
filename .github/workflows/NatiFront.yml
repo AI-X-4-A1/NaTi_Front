@@ -2,11 +2,10 @@ name: Create Release and Deploy
 
 on:
   schedule:
-  # - cron: '0 0 * * *'  # 매일 0시(UTC)에 워크플로우 실행
-    - cron: '45 6 * * *'
+    - cron: '5 7 * * *'  # 매일 7시 5분 (UTC)에 워크플로우 실행 (한국 시간 16시 5분)
   push:
     branches:
-      - Releases
+      - dev  # dev 브랜치에서 푸시될 때만 실행
 
 jobs:
   release:
@@ -21,7 +20,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: "18"  # Node.js 22.11.0 설정
+          node-version: "18"
 
       # 3. jq 설치 (package.json 파싱용)
       - name: Install jq
@@ -61,4 +60,15 @@ jobs:
         run: |
           docker-compose -f docker-compose.yml build  # Docker 이미지 빌드
           docker-compose -f docker-compose.yml up -d  # Docker Compose로 서비스 시작
-    
+
+      # 8. `Releases` 브랜치가 없으면 생성하고 푸시
+      - name: Create and push Releases branch if it does not exist
+        run: |
+          git fetch origin
+          if ! git rev-parse --verify origin/Releases; then
+            echo "Releases branch does not exist. Creating it..."
+            git checkout -b Releases  # 새로운 Releases 브랜치 생성
+            git push origin Releases  # 원격에 푸시
+          else
+            echo "Releases branch already exists."
+          fi
