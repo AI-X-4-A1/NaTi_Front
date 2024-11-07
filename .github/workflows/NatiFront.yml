@@ -1,0 +1,64 @@
+name: Create Release and Deploy
+
+on:
+  schedule:
+  # - cron: '0 0 * * *'  # 매일 0시(UTC)에 워크플로우 실행
+    - cron: '17 6 * * *'
+  push:
+    branches:
+      - Releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 레포지토리 체크아웃
+      - name: Check out the repository
+        uses: actions/checkout@v2
+
+      # 2. Node.js 환경 설정
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "22.11.0"  # Node.js 22.11.0 설정
+
+      # 3. jq 설치 (package.json 파싱용)
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      # 4. package.json에서 버전 및 릴리스 노트 추출
+      - name: Get the version from package.json
+        id: get_version
+        run: |
+          VERSION=$(cat package.json | jq -r .version)
+          NOTES=$(cat package.json | jq -r .releaseNotes)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "NOTES=$NOTES" >> $GITHUB_ENV
+
+      # 5. 환경 변수 디버깅
+      - name: Debugging environment variables
+        run: |
+          echo "Version: $VERSION"
+          echo "Release Notes: $NOTES"
+
+      # 6. GitHub Release 생성
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.NaTi }}  # NaTi 프로젝트에 맞게 시크릿 이름 변경
+        with:
+          tag_name: ${{ env.VERSION }}
+          release_name: "Release ${{ env.VERSION }}"
+          body: ${{ env.NOTES }}
+
+      # 7. Docker Compose 설정
+      - name: Set up Docker Compose
+        uses: docker/setup-buildx-action@v2  # Docker Buildx 설정 (멀티플랫폼 빌드 지원)
+      
+      - name: Build and push Docker image
+        run: |
+          docker-compose -f docker-compose.yml build  # Docker 이미지 빌드
+          docker-compose -f docker-compose.yml up -d  # Docker Compose로 서비스 시작
+    
