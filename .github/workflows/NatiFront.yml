@@ -2,7 +2,7 @@ name: Create Release and Deploy
 
 on:
   schedule:
-    - cron: '33 7 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
+    - cron: '36 7 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
   push:
     branches:
       - dev  # dev 브랜치에서만 실행
