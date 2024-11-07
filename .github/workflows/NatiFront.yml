@@ -1,78 +1,111 @@
 name: Create Release and Deploy
 
+# 워크플로우가 트리거되는 조건을 설정
 on:
   schedule:
-    - cron: '20 7 * * *'  # 매일 7시 5분 (UTC)에 워크플로우 실행 (한국 시간 16시 20분)
+    # 매일 7시 25분 (UTC)마다 실행 (한국 시간 16시 25분)
+    - cron: '25 7 * * *'
   push:
+    # dev 브랜치에 푸시가 될 때만 실행
     branches:
-      - dev  # dev 브랜치에서 푸시될 때만 실행
+      - dev
 
 jobs:
   release:
+    # 워크플로우가 실행될 OS 환경을 설정
     runs-on: ubuntu-latest
+
+    # GITHUB_TOKEN을 통해 권한을 관리하기 위한 설정
     permissions:
-      contents: write    # Release 생성에 필요한 권한
-      issues: write      # 이슈 관련 권한 (필요할 경우 추가)
-      pull-requests: write  # PR 관련 권한 (필요할 경우 추가)
+      contents: write    # Release를 생성하려면 contents에 대한 write 권한 필요
+      issues: write      # 필요에 따라 이슈 관련 권한을 추가할 수 있음
+      pull-requests: write  # PR 관련 권한을 추가할 수 있음
 
     steps:
       # 1. 레포지토리 체크아웃
       - name: Check out the repository
         uses: actions/checkout@v2
+        # 레포지토리의 최신 코드를 가져오는 액션
+        # checkout 액션을 사용해 현재 워크플로우가 실행되는 리포지토리의 코드를 가져옴
 
       # 2. Node.js 환경 설정
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
           node-version: "18"
+        # Node.js를 설치하고 18 버전을 사용하도록 설정
+        # 이 후에 Node.js를 사용하는 작업들을 진행할 수 있음
 
       # 3. jq 설치 (package.json 파싱용)
       - name: Install jq
         run: sudo apt-get install jq
+        # jq는 JSON 데이터를 파싱할 수 있는 유틸리티
+        # package.json 파일에서 버전과 릴리스 노트를 추출하기 위해 사용
 
       # 4. package.json에서 버전 및 릴리스 노트 추출
       - name: Get the version from package.json
         id: get_version
         run: |
-          VERSION=$(cat package.json | jq -r .version)
-          NOTES=$(cat package.json | jq -r .releaseNotes)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "NOTES=$NOTES" >> $GITHUB_ENV
+          VERSION=$(cat package.json | jq -r .version)    # package.json에서 버전 추출
+          NOTES=$(cat package.json | jq -r .releaseNotes)  # package.json에서 releaseNotes 추출
+          echo "VERSION=$VERSION" >> $GITHUB_ENV  # 환경 변수로 VERSION 설정
+          echo "NOTES=$NOTES" >> $GITHUB_ENV    # 환경 변수로 NOTES 설정
+        # package.json 파일을 읽고 버전 및 릴리스 노트를 추출
+        # 추출한 값을 GitHub Actions의 환경 변수로 설정하여 다른 단계에서 사용할 수 있도록 전달
 
       # 5. 환경 변수 디버깅
       - name: Debugging environment variables
         run: |
-          echo "Version: $VERSION"
-          echo "Release Notes: $NOTES"
+          echo "Version: $VERSION"  # VERSION 값 출력
+          echo "Release Notes: $NOTES"  # NOTES 값 출력
+        # 디버깅을 위한 출력 단계
+        # 환경 변수에 저장된 VERSION과 NOTES 값을 콘솔에 출력하여 제대로 값이 저장되었는지 확인
 
       # 6. GitHub Release 생성
       - name: Create GitHub Release
         id: create_release
-        uses: actions/create-release@v1.1
+        uses: actions/create-release@v1  # 최신 버전으로 변경 (v1.1 -> v1)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # NaTi 프로젝트에 맞게 시크릿 이름 변경
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub API 호출에 사용할 토큰 (GitHub 자동 생성)
         with:
-          tag_name: ${{ env.VERSION }}
-          release_name: "Release ${{ env.VERSION }}"
-          body: ${{ env.NOTES }}
+          tag_name: ${{ env.VERSION }}  # 릴리스에 사용할 태그 이름, 환경 변수에서 VERSION 값을 사용
+          release_name: "Release ${{ env.VERSION }}"  # 릴리스 이름, 환경 변수에서 VERSION 값을 사용
+          body: ${{ env.NOTES }}  # 릴리스 설명 (릴리스 노트), 환경 변수에서 NOTES 값을 사용
+        # `actions/create-release@v1` 액션을 사용해 GitHub에서 Release를 생성
+        # 새로운 릴리스는 VERSION 값에 맞춰 생성되고, 릴리스 노트는 NOTES 값으로 설정됨
 
       # 7. Docker Compose 설정
       - name: Set up Docker Compose
         uses: docker/setup-buildx-action@v2  # Docker Buildx 설정 (멀티플랫폼 빌드 지원)
-      
+        # Docker Compose를 사용한 배포 환경 설정을 위해 Docker Buildx를 설정
+        # Buildx는 Docker 빌드를 멀티플랫폼으로 관리할 수 있게 해주는 도구
+
+      # 8. Docker 이미지 빌드 및 배포
       - name: Build and push Docker image
         run: |
-          docker-compose -f docker-compose.yml build  # Docker 이미지 빌드
+          docker-compose -f docker-compose.yml build  # Docker 이미지를 빌드
           docker-compose -f docker-compose.yml up -d  # Docker Compose로 서비스 시작
+        # Docker Compose를 사용하여 이미지 빌드 및 배포
+        # docker-compose.yml 파일을 사용해 애플리케이션을 컨테이너화하고 배포
 
-      # 8. `Releases` 브랜치가 없으면 생성하고 푸시
+      # 9. `Releases` 브랜치가 없으면 생성하고 푸시
       - name: Create and push Releases branch if it does not exist
         run: |
-          git fetch origin
-          if ! git rev-parse --verify origin/Releases; then
+          git fetch origin  # 원격 저장소에서 최신 정보 가져오기
+          if ! git rev-parse --verify origin/Releases; then  # 'Releases' 브랜치가 없으면
             echo "Releases branch does not exist. Creating it..."
             git checkout -b Releases  # 새로운 Releases 브랜치 생성
             git push origin Releases  # 원격에 푸시
           else
             echo "Releases branch already exists."
-          fi
+        # 'Releases'라는 브랜치가 원격에 없다면 새로 생성하고 푸시
+        # 이미 'Releases' 브랜치가 존재하면 아무 작업도 하지 않음
+
+      # 10. dev 브랜치 작업을 main 브랜치로 머지
+      - name: Merge dev branch into main
+        run: |
+          git checkout main  # main 브랜치로 전환
+          git merge dev --no-ff -m "Merging dev into main"  # dev 브랜치를 main으로 머지
+          git push origin main  # 변경 사항을 main 브랜치에 푸시
+        # dev 브랜치에서 작업한 내용이 main 브랜치에 반영되도록 자동 머지
+        # --no-ff 옵션은 머지 커밋을 생성하도록 강제
