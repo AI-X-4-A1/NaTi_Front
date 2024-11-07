@@ -21,7 +21,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: "22.11.0"  # Node.js 22.11.0 설정
+          node-version: "18"  # Node.js 22.11.0 설정
 
       # 3. jq 설치 (package.json 파싱용)
       - name: Install jq
