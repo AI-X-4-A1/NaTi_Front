@@ -2,7 +2,7 @@ name: Create Release and Deploy
 
 on:
   schedule:
-    - cron: '5 7 * * *'  # 매일 7시 5분 (UTC)에 워크플로우 실행 (한국 시간 16시 5분)
+    - cron: '20 7 * * *'  # 매일 7시 5분 (UTC)에 워크플로우 실행 (한국 시간 16시 20분)
   push:
     branches:
       - dev  # dev 브랜치에서 푸시될 때만 실행
@@ -10,6 +10,10 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write    # Release 생성에 필요한 권한
+      issues: write      # 이슈 관련 권한 (필요할 경우 추가)
+      pull-requests: write  # PR 관련 권한 (필요할 경우 추가)
 
     steps:
       # 1. 레포지토리 체크아웃
@@ -44,7 +48,7 @@ jobs:
       # 6. GitHub Release 생성
       - name: Create GitHub Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # NaTi 프로젝트에 맞게 시크릿 이름 변경
         with:
