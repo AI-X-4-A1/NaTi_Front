@@ -115,5 +115,6 @@ jobs:
       - name: Merge dev branch into main
         run: |
           git checkout main
-          git merge dev --no-ff -m "Merging dev into main"
+          git merge dev --no-ff --allow-unrelated-histories -m "Merging dev into main"
           git push origin main
+    
