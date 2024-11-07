@@ -5,7 +5,7 @@ on:
     - cron: '50 7 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
   push:
     branches:
-      - main  # dev 브랜치에서만 실행
+      - dev  # dev 브랜치에서만 실행
 
 jobs:
   release:
