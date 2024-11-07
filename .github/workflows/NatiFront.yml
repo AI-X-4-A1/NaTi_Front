@@ -2,7 +2,7 @@ name: Create Release and Deploy
 
 on:
   schedule:
-    - cron: '27 7 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
+    - cron: '25 7 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
   push:
     branches:
       - dev  # dev 브랜치에서만 실행
@@ -41,7 +41,24 @@ jobs:
           echo "Version: $VERSION"
           echo "Release Notes: $NOTES"
 
+      # 릴리스가 이미 존재하는지 확인하고, 존재하지 않으면 생성
+      - name: Check if release exists
+        id: check_release
+        run: |
+          EXISTING_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.VERSION }}" \
+            | jq -r '.message')
+          if [[ "$EXISTING_RELEASE" == "Not Found" ]]; then
+            echo "Release does not exist, creating it."
+            echo "create_release=true" >> $GITHUB_ENV
+          else
+            echo "Release already exists."
+            echo "create_release=false" >> $GITHUB_ENV
+          fi
+
+      # 릴리스가 존재하지 않으면 GitHub Release 생성
       - name: Create GitHub Release
+        if: env.create_release == 'true'
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -52,21 +69,20 @@ jobs:
           body: ${{ env.NOTES }}
 
       - name: Set up Docker Compose
-        uses: docker/setup-buildx-action@v2  # Docker Buildx 설정
+        uses: docker/setup-buildx-action@v2
         with:
-          version: latest  # 최신 버전의 Docker Buildx 사용
+          version: latest
 
-      # Docker Compose 설치
       - name: Install Docker Compose
         run: |
           curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose --version  # 설치 확인
+          docker-compose --version
 
       - name: Build and push Docker image
         run: |
-          docker-compose -f docker-compose.yml build  # Docker 이미지를 빌드
-          docker-compose -f docker-compose.yml up -d  # Docker Compose로 서비스 시작
+          docker-compose -f docker-compose.yml build
+          docker-compose -f docker-compose.yml up -d
 
       - name: Create and push Releases branch if it does not exist
         run: |
