@@ -2,15 +2,19 @@ name: Create Release and Deploy
 
 on:
   schedule:
-  # - cron: '0 0 * * *'  # 매일 0시(UTC)에 워크플로우 실행
-    - cron: '45 6 * * *'
+    - cron: '27 8 * * *'  # 매일 7시 25분 (UTC) 실행 (한국 시간 16시 25분)
   push:
     branches:
-      - Releases
+      - dev  # dev 브랜치에서만 실행
 
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
 
     steps:
       # 1. 레포지토리 체크아웃
@@ -21,7 +25,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: "18"  # Node.js 22.11.0 설정
+          node-version: "18"
 
       # 3. jq 설치 (package.json 파싱용)
       - name: Install jq
@@ -42,23 +46,80 @@ jobs:
           echo "Version: $VERSION"
           echo "Release Notes: $NOTES"
 
-      # 6. GitHub Release 생성
+      # 6. .env 파일 생성 (GitHub Secrets에서 환경 변수 가져오기)
+      - name: Create .env file
+        run: |
+          echo "REACT_APP_LLM=${{ secrets.REACT_APP_LLM }}" >> .env
+          echo "REACT_APP_TTS=${{ secrets.REACT_APP_TTS }}" >> .env
+        # GitHub Secrets에서 환경 변수를 읽어 .env 파일을 생성
+
+      # 7. 릴리스가 이미 존재하는지 확인하고, 존재하지 않으면 생성
+      - name: Check if release exists
+        id: check_release
+        run: |
+          EXISTING_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.VERSION }}" \
+            | jq -r '.message')
+          if [[ "$EXISTING_RELEASE" == "Not Found" ]]; then
+            echo "Release does not exist, creating it."
+            echo "create_release=true" >> $GITHUB_ENV
+          else
+            echo "Release already exists."
+            echo "create_release=false" >> $GITHUB_ENV
+          fi
+
+      # 8. 릴리스가 존재하지 않으면 GitHub Release 생성
       - name: Create GitHub Release
+        if: env.create_release == 'true'
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # NaTi 프로젝트에 맞게 시크릿 이름 변경
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ env.VERSION }}
           release_name: "Release ${{ env.VERSION }}"
           body: ${{ env.NOTES }}
 
-      # 7. Docker Compose 설정
+      # 9. Docker Compose 설정
       - name: Set up Docker Compose
-        uses: docker/setup-buildx-action@v2  # Docker Buildx 설정 (멀티플랫폼 빌드 지원)
-      
+        uses: docker/setup-buildx-action@v2
+        with:
+          version: latest
+
+      # 10. Docker Compose 설치
+      - name: Install Docker Compose
+        run: |
+          curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
+
+      # 11. Docker 이미지 빌드 및 배포
       - name: Build and push Docker image
         run: |
-          docker-compose -f docker-compose.yml build  # Docker 이미지 빌드
-          docker-compose -f docker-compose.yml up -d  # Docker Compose로 서비스 시작
-    
+          docker-compose -f docker-compose.yml build
+          docker-compose -f docker-compose.yml up -d
+
+      # 12. Releases 브랜치가 없으면 생성하고 푸시
+      - name: Create and push Releases branch if it does not exist
+        run: |
+          git fetch origin
+          if ! git rev-parse --verify origin/Releases; then
+            echo "Releases branch does not exist. Creating it..."
+            git checkout -b Releases
+            git push origin Releases
+          else
+            echo "Releases branch already exists."
+          fi
+
+      # 13. Git 사용자 설정 (커밋을 위한)
+      - name: Set up Git user for commit
+        run: |
+          git config --global user.email "power4206@gmail.com"
+          git config --global user.name "KHY90"
+
+      # 14. dev 브랜치를 main 브랜치에 병합
+      - name: Merge dev branch into main
+        run: |
+          git checkout main
+          git merge dev --no-ff --allow-unrelated-histories -m "Merging dev into main"
+          git push origin main
