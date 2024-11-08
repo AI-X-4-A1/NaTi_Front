@@ -2,7 +2,7 @@ name: Create PR and Deploy to Docker Hub
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # 매일 오후 1시에 실행 (UTC 기준)
+    - cron: '30 4 * * *'  # 매일 오후 1시에 실행 (UTC 기준)
   workflow_dispatch: # 수동 트리거도 가능하도록 추가
 
 jobs:
@@ -44,27 +44,30 @@ jobs:
           echo "REACT_APP_LLM=${{ secrets.REACT_APP_LLM }}" >> .env
           echo "REACT_APP_TTS=${{ secrets.REACT_APP_TTS }}" >> .env
 
-      # 6. PR 생성 (dev 브랜치에 대한 자동 PR 생성)
+      # 6. PR 생성 (현재 브랜치에서 dev 브랜치로 자동 PR 생성)
       - name: Create Pull Request to dev branch
         id: create_pr
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
           
-          # 새 브랜치 생성
-          git checkout -b release-${{ github.run_id }}
+          # 현재 브랜치 이름을 가져옵니다 (예: feat/notice, feat/llm 등)
+          CURRENT_BRANCH="${GITHUB_REF##*/}"
           
-          # 변경사항 커밋
+          # dev 브랜치로 PR 생성
+          git checkout $CURRENT_BRANCH
+          
+          # 변경사항 커밋 (필요한 경우)
           git add .
-          git commit -m "Automated PR for release-${{ github.run_id }}"
+          git commit -m "Automated PR for merging $CURRENT_BRANCH into dev"
           
           # 원격에 푸시
-          git push origin release-${{ github.run_id }}
+          git push origin $CURRENT_BRANCH
           
           # GitHub API를 사용해 PR 생성
           PR_URL=$(curl -s -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"title":"Automated PR for dev branch","head":"release-${{ github.run_id }}","base":"dev"}' \
+            -d '{"title":"Automated PR for merging '$CURRENT_BRANCH' into dev","head":"'$CURRENT_BRANCH'","base":"dev"}' \
             https://api.github.com/repos/${{ github.repository }}/pulls | jq -r .html_url)
 
           echo "PR URL: $PR_URL"
