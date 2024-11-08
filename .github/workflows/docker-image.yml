@@ -2,7 +2,7 @@ name: Auto Merge, Build, and Deploy to Docker Hub
 
 on:
   schedule:
-    - cron: '30 3 * * *' 
+    - cron: '0 14 * * *' # 매일 23:00 UTC (KST 저녁 11시)
   workflow_dispatch: # 수동 실행 가능
 
 permissions:
@@ -24,33 +24,32 @@ jobs:
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
-      
-      # dev 브랜치에 새로운 커밋이 있는지 확인
-      - name: Check for new commits in dev branch
+
+      # feat/* 또는 새로 생긴 브랜치에서 dev 브랜치에 새 커밋이 있는지 확인
+      - name: Check for new commits in feat/* branches
         id: check_commits
         run: |
-          git fetch origin main
-          git fetch origin dev
-          NEW_COMMITS_COUNT=$(git rev-list origin/main..origin/dev --count)
-          echo "Number of new commits in dev branch: $NEW_COMMITS_COUNT"
+          git fetch --all
+          NEW_COMMITS_COUNT=$(git rev-list --count --remotes="origin/feat/*" --not origin/dev)
+          echo "Number of new commits in feat/* branches: $NEW_COMMITS_COUNT"
           if [ "$NEW_COMMITS_COUNT" -eq 0 ]; then
-            echo "No new commits in dev branch."
+            echo "No new commits in feat/* branches."
             echo "has_new_commits=false" >> $GITHUB_ENV
           else
-            echo "Found new commits in dev branch."
+            echo "Found new commits in feat/* branches."
             echo "has_new_commits=true" >> $GITHUB_ENV
           fi
-      
-      # dev 브랜치의 변경 사항을 main 브랜치로 PR 생성
-      - name: Create pull request from dev to main
+
+      # feat/* 브랜치의 변경 사항을 dev 브랜치로 PR 생성
+      - name: Create pull request from feat/* to dev
         if: env.has_new_commits == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Attempting to create PR from dev to main."
-          gh pr create --base main --head dev --title "Auto merge dev into main" --body "자동 생성된 Pull Request" || echo "PR already exists."
-      
-      # PR 자동 병합 (dev 브랜치 유지)
+          echo "Attempting to create PR from feat/* branches to dev."
+          gh pr create --base dev --head "$(git for-each-ref --format '%(refname:short)' refs/remotes/origin/feat/* | head -n 1)" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" || echo "PR already exists."
+
+      # PR 자동 병합 (feat/* 브랜치 유지)
       - name: Auto-merge pull request
         if: env.has_new_commits == 'true'
         env:
@@ -61,7 +60,7 @@ jobs:
             echo "Merging PR: $PR_URL"
             gh pr merge "$PR_URL" --auto || echo "Merge failed."
           else
-            echo "No PR found for dev to main. Skipping merge."
+            echo "No PR found for feat/* to dev. Skipping merge."
           fi
 
       # Docker 빌드 및 Docker Hub 푸시
@@ -94,10 +93,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Remove existing Docker container and image
+        shell: cmd
+        run: |
+            docker stop yaggugifrontapp 2>NUL || echo "Container not running or already stopped"
+            docker rm yaggugifrontapp 2>NUL || echo "Container not found or already removed"
+            docker rmi ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest 2>NUL || echo "Image not found or already removed"
+
       - name: Pull Docker image from Docker Hub and run container
         shell: cmd
         run: |
-          docker stop yaggugifrontapp 2>NUL || echo "Container not running or already stopped"
-          docker rm yaggugifrontapp 2>NUL || echo "Container not found or already removed"
-          docker pull ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
-          docker run -d -p 3000:3000 --name yaggugifrontapp ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+            docker run -d -p 3000:3000 --name yaggugifrontapp ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
