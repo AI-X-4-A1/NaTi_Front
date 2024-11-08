@@ -7,16 +7,16 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# 앱 소스 코드 복사 및 빌드
-COPY . .
-
-# 환경 변수 전달
+# 빌드 인수 설정 (GitHub Actions에서 환경 변수로 전달)
 ARG REACT_APP_LLM
 ARG REACT_APP_TTS
+
+# 환경 변수 설정
 ENV REACT_APP_LLM=$REACT_APP_LLM
 ENV REACT_APP_TTS=$REACT_APP_TTS
 
-# 빌드 명령어 실행
+# 앱 소스 코드 복사 및 빌드
+COPY . . 
 RUN npm run build
 
 # 2. 배포 단계
@@ -28,8 +28,8 @@ RUN npm install -g serve && npm cache clean --force
 # 빌드된 파일 복사
 COPY --from=build /app/build /app/build
 
-# 포트 3010 노출
-EXPOSE 3010
+# 포트 3000 노출
+EXPOSE 3000
 
 # `serve`로 정적 파일 서빙
-CMD ["serve", "-s", "/app/build", "-l", "3010"]
+CMD ["serve", "-s", "/app/build", "-l", "3000"]
