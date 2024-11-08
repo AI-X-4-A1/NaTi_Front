@@ -2,7 +2,7 @@ name: Auto Merge, Build, and Deploy to Docker Hub
 
 on:
   schedule:
-    - cron: '50 1 * * *' 
+    - cron: '30 3 * * *' 
   workflow_dispatch: # 수동 실행 가능
 
 permissions:
@@ -24,6 +24,7 @@ jobs:
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
+      
       # dev 브랜치에 새로운 커밋이 있는지 확인
       - name: Check for new commits in dev branch
         id: check_commits
@@ -39,6 +40,7 @@ jobs:
             echo "Found new commits in dev branch."
             echo "has_new_commits=true" >> $GITHUB_ENV
           fi
+      
       # dev 브랜치의 변경 사항을 main 브랜치로 PR 생성
       - name: Create pull request from dev to main
         if: env.has_new_commits == 'true'
@@ -47,6 +49,7 @@ jobs:
         run: |
           echo "Attempting to create PR from dev to main."
           gh pr create --base main --head dev --title "Auto merge dev into main" --body "자동 생성된 Pull Request" || echo "PR already exists."
+      
       # PR 자동 병합 (dev 브랜치 유지)
       - name: Auto-merge pull request
         if: env.has_new_commits == 'true'
@@ -60,6 +63,16 @@ jobs:
           else
             echo "No PR found for dev to main. Skipping merge."
           fi
+
+      # .env 파일을 복사하여 /tmp/.env에 저장 (존재할 경우)
+      - name: Copy .env file (if exists)
+        run: |
+          if [ -f .env ]; then
+            cp .env /tmp/.env
+          else
+            echo "No .env file found"
+          fi
+
       # Docker 빌드 및 Docker Hub 푸시
       - name: Log in to Docker Hub
         if: env.has_new_commits == 'true'
@@ -74,9 +87,10 @@ jobs:
           REACT_APP_LLM: ${{ secrets.REACT_APP_LLM }}
           REACT_APP_TTS: ${{ secrets.REACT_APP_TTS }}
         run: |
-          docker build -t yaggugifrontapp --build-arg REACT_APP_LLM=$REACT_APP_LLM --build-arg REACT_APP_TTS=$REACT_APP_TTS .
+          docker build -t yaggugifrontapp --build-arg REACT_APP_LLM=$REACT_APP_LLM --build-arg REACT_APP_TTS=$REACT_APP_TTS --env-file /tmp/.env .
           docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+
   # deploy_local job을 auto_merge_build_deploy 이후에 실행
   deploy_local:
     runs-on: self-hosted
