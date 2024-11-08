@@ -2,7 +2,7 @@ name: Create PR and Deploy to Docker Hub
 
 on:
   schedule:
-    - cron: '30 4 * * *'  # 매일 오후 1시에 실행 (UTC 기준)
+    - cron: '15 4 * * *'  # 매일 오후 1시에 실행 (UTC 기준)
   workflow_dispatch: # 수동 트리거도 가능하도록 추가
 
 jobs:
