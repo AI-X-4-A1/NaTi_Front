@@ -78,7 +78,6 @@ jobs:
           docker build -t yaggugifrontapp \
             --build-arg REACT_APP_LLM=${{ secrets.REACT_APP_LLM }} \
             --build-arg REACT_APP_TTS=${{ secrets.REACT_APP_TTS }} \
-            --build-arg REACT_APP_OTHER_SECRET=${{ secrets.REACT_APP_OTHER_SECRET }} \
             . 
           docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
