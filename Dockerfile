@@ -7,11 +7,16 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# .env 파일을 복사하여 빌드 시 환경 변수로 적용
-COPY .env .env
+# 빌드 인수 설정 (GitHub Actions에서 환경 변수로 전달)
+ARG REACT_APP_LLM
+ARG REACT_APP_TTS
+
+# 환경 변수 설정
+ENV REACT_APP_LLM=$REACT_APP_LLM
+ENV REACT_APP_TTS=$REACT_APP_TTS
 
 # 앱 소스 코드 복사 및 빌드
-COPY . .
+COPY . . 
 RUN npm run build
 
 # 2. 배포 단계
@@ -24,11 +29,7 @@ RUN npm install -g serve && npm cache clean --force
 COPY --from=build /app/build /app/build
 
 # 포트 3000 노출
-EXPOSE 3010
+EXPOSE 3000
 
 # `serve`로 정적 파일 서빙
-CMD ["serve", "-s", "/app/build", "-l", "3010"]
-
-# docker build -t yaggugi-front-app .
-
-# docker run -d -p 3000:3000 --name yaggugi-front-app yaggugi-front-app
+CMD ["serve", "-s", "/app/build", "-l", "3000"]

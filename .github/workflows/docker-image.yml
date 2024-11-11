@@ -1,107 +1,119 @@
-name: Create PR and Deploy to Docker Hub
+name: Auto Merge, Build, and Deploy to Docker Hub and ECR
 
 on:
   schedule:
-    - cron: '15 4 * * *'  # 매일 오후 1시에 실행 (UTC 기준)
-  workflow_dispatch: # 수동 트리거도 가능하도록 추가
+    - cron: '20 3 * * *' 
+  workflow_dispatch: # 수동 실행 가능
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  create-pr-and-deploy:
+  auto_merge_build_deploy:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+    outputs:
+      has_new_commits: ${{ env.has_new_commits }}
 
     steps:
-      # 1. 레포지토리 체크아웃
-      - name: Check out the repository
+      - name: Checkout repository
         uses: actions/checkout@v2
 
-      # 2. Node.js 환경 설정
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: "18"
-
-      # 3. jq 설치 (package.json 파싱용)
-      - name: Install jq
-        run: sudo apt-get install jq
-
-      # 4. package.json에서 버전 및 릴리스 노트 추출
-      - name: Get the version from package.json
-        id: get_version
-        run: |
-          VERSION=$(cat package.json | jq -r .version)
-          NOTES=$(cat package.json | jq -r .releaseNotes)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "NOTES=$NOTES" >> $GITHUB_ENV
-
-      # 5. .env 파일 생성 (GitHub Secrets에서 환경 변수 가져오기)
-      - name: Create .env file
-        run: |
-          echo "REACT_APP_LLM=${{ secrets.REACT_APP_LLM }}" >> .env
-          echo "REACT_APP_TTS=${{ secrets.REACT_APP_TTS }}" >> .env
-
-      # 6. PR 생성 (현재 브랜치에서 dev 브랜치로 자동 PR 생성)
-      - name: Create Pull Request to dev branch
-        id: create_pr
+      # Git 설정
+      - name: Configure Git
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
-          
-          # 현재 브랜치 이름을 가져옵니다 (예: feat/notice, feat/llm 등)
-          CURRENT_BRANCH="${GITHUB_REF##*/}"
-          
-          # dev 브랜치로 PR 생성
-          git checkout $CURRENT_BRANCH
-          
-          # 변경사항 커밋 (필요한 경우)
-          git add .
-          git commit -m "Automated PR for merging $CURRENT_BRANCH into dev"
-          
-          # 원격에 푸시
-          git push origin $CURRENT_BRANCH
-          
-          # GitHub API를 사용해 PR 생성
-          PR_URL=$(curl -s -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"title":"Automated PR for merging '$CURRENT_BRANCH' into dev","head":"'$CURRENT_BRANCH'","base":"dev"}' \
-            https://api.github.com/repos/${{ github.repository }}/pulls | jq -r .html_url)
+      # feat/* 또는 새로 생긴 브랜치에서 dev 브랜치에 새 커밋이 있는지 확인
+      - name: Check for new commits in feat/* branches
+        id: check_commits
+        run: |
+          git fetch --all
+          NEW_COMMITS_COUNT=$(git rev-list --count --remotes="origin/feat/*" --not origin/dev)
+          echo "Number of new commits in feat/* branches: $NEW_COMMITS_COUNT"
+          if [ "$NEW_COMMITS_COUNT" -eq 0 ]; then
+            echo "No new commits in feat/* branches."
+            echo "has_new_commits=false" >> $GITHUB_ENV
+          else
+            echo "Found new commits in feat/* branches."
+            echo "has_new_commits=true" >> $GITHUB_ENV
+          fi
+      # feat/* 브랜치의 변경 사항을 dev 브랜치로 PR 생성
+      - name: Create pull request from feat/* to dev
+        if: env.has_new_commits == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Attempting to create PR from feat/* branches to dev."
+          gh pr create --base dev --head "$(git for-each-ref --format '%(refname:short)' refs/remotes/origin/feat/* | head -n 1)" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" || echo "PR already exists."
+      # PR 자동 병합 (feat/* 브랜치 유지)
+      - name: Auto-merge pull request
+        if: env.has_new_commits == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(gh pr view dev --json url --jq '.url' || echo "")
+          if [ -n "$PR_URL" ]; then
+            echo "Merging PR: $PR_URL"
+            gh pr merge "$PR_URL" --auto || echo "Merge failed."
+          else
+            echo "No PR found for feat/* to dev. Skipping merge."
+          fi
+      # Docker 빌드 및 Docker Hub 푸시
+      - name: Log in to Docker Hub
+        if: env.has_new_commits == 'true'
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-          echo "PR URL: $PR_URL"
-          echo "pr_url=$PR_URL" >> $GITHUB_ENV
-
-      # 7. Docker 이미지 빌드 및 푸시
       - name: Build and push Docker image to Docker Hub
+        if: env.has_new_commits == 'true'
         run: |
-          echo "Building Docker image"
-          docker-compose -f docker-compose.yml build
+          docker build -t yaggugifrontapp \
+            --build-arg REACT_APP_LLM=${{ secrets.REACT_APP_LLM }} \
+            --build-arg REACT_APP_TTS=${{ secrets.REACT_APP_TTS }} \
+            .
+          docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+
+      # AWS ECR 로그인 및 푸시
+      - name: Log in to AWS ECR
+        if: env.has_new_commits == 'true'
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push Docker image to ECR
+        if: env.has_new_commits == 'true'
+        run: |
+          # ECR 레포지토리 URL과 이미지 이름
+          ECR_REPO=533267329278.dkr.ecr.ap-northeast-2.amazonaws.com/narrativatest
           
-          echo "Pushing Docker image to Docker Hub"
-          docker-compose -f docker-compose.yml push
+          # Docker 이미지 빌드 및 태그
+          docker build -t $ECR_REPO:latest .
+          
+          # ECR 레포지토리로 푸시
+          docker push $ECR_REPO:latest
+          
+  # deploy_local job을 auto_merge_build_deploy 이후에 실행
+  deploy_local:
+    runs-on: self-hosted
+    needs: auto_merge_build_deploy
+    if: needs.auto_merge_build_deploy.outputs.has_new_commits == 'true'
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 8. Docker Compose로 서비스 배포
-      - name: Deploy with Docker Compose
+      - name: Remove existing Docker container and image
+        shell: cmd
         run: |
-          echo "Deploying services with Docker Compose"
-          docker-compose -f docker-compose.yml up -d
-
-      # 9. PR 승인 (옵션, 자동으로 승인하려면 아래 사용)
-      - name: Approve Pull Request (optional)
-        if: success() && env.pr_url != ''
+            docker stop yaggugifrontapp 2>NUL || echo "Container not running or already stopped"
+            docker rm yaggugifrontapp 2>NUL || echo "Container not found or already removed"
+            docker rmi ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest 2>NUL || echo "Image not found or already removed"
+      - name: Pull Docker image from Docker Hub and run container
+        shell: cmd
         run: |
-          curl -s -X PATCH \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"state": "approved"}' \
-            https://api.github.com/repos/${{ github.repository }}/pulls/${{ env.pr_url }}.json
-
-      # 10. PR 머지 (옵션, 자동으로 머지하려면 아래 사용)
-      - name: Merge Pull Request (optional)
-        if: success() && env.pr_url != ''
-        run: |
-          curl -s -X PUT \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"merge_method": "merge"}' \
-            https://api.github.com/repos/${{ github.repository }}/pulls/${{ env.pr_url }}/merge
+            docker pull ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+            docker run -d -p 3000:3000 --name yaggugifrontapp ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
