@@ -12,7 +12,7 @@ permissions:
 jobs:
   auto_merge_build_deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' # dev 브랜치에서만 실행
+    if: github.ref == 'refs/heads/dev'
     outputs:
       has_new_commits: ${{ env.has_new_commits }}
 
