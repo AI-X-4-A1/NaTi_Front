@@ -51,8 +51,8 @@ jobs:
           # feat/* 브랜치 중 첫 번째를 PR 대상으로 사용
           HEAD_BRANCH=$(git for-each-ref --format '%(refname:short)' refs/remotes/origin/feat/* | head -n 1)
           
-          # PR을 생성하고, PR의 URL을 추출하는 방법으로 수정
-          PR_URL=$(gh pr create --base dev --head "$HEAD_BRANCH" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" --web | tee /dev/tty | grep -o 'https://github.com/[^\"]*')
+          # PR을 생성하고, PR URL을 가져오기 위한 명령어
+          PR_URL=$(gh pr create --base dev --head "$HEAD_BRANCH" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" --json url -q ".url")
           
           if [ -n "$PR_URL" ]; then
             echo "PR created successfully: $PR_URL"
