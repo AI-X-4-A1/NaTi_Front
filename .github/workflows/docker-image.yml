@@ -54,29 +54,25 @@ jobs:
           PR_URL=$(gh pr create --base dev --head "$HEAD_BRANCH" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" --json url -q ".url" || echo "")
           
           if [ -n "$PR_URL" ]; then
-            echo "Merging PR: $PR_URL"
-            gh pr merge "$PR_URL" --auto || echo "Merge failed."
+            echo "PR created successfully: $PR_URL"
           else
             echo "PR creation failed or PR already exists."
-          
-          # GitHub CLI 인증 상태 확인
-          gh auth status
-
-          # 현재 열려 있는 PR 목록 확인
-          gh pr list --state open
 
       # PR 자동 병합 (feat/* 브랜치 유지)
-      - name: Auto-merge pull request
+      - name: Check and Merge PR if exists
         if: env.has_new_commits == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_URL=$(gh pr view dev --json url --jq '.url' || echo "")
-          if [ -n "$PR_URL" ]; then
-            echo "Merging PR: $PR_URL"
-            gh pr merge "$PR_URL" --auto || echo "Merge failed."
+          # Open PR 상태 확인
+          OPEN_PR=$(gh pr list --state open --base dev --head "feat/*" --json url -q ".[0].url" || echo "")
+          
+          if [ -n "$OPEN_PR" ]; then
+            echo "Found open PR: $OPEN_PR"
+            echo "Merging PR: $OPEN_PR"
+            gh pr merge "$OPEN_PR" --auto || echo "Merge failed."
           else
-            echo "No PR found for feat/* to dev. Skipping merge."
+            echo "No open PR found for feat/* to dev. Skipping merge."
           
       # Docker 빌드 및 Docker Hub 푸시
       - name: Log in to Docker Hub
