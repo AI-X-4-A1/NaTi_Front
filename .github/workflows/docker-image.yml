@@ -16,6 +16,7 @@ jobs:
       has_new_commits: ${{ env.has_new_commits }}
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
@@ -38,13 +39,12 @@ jobs:
           else
             echo "Found new commits in feat/* branches."
             echo "has_new_commits=true" >> $GITHUB_ENV
-          fi
 
       # feat/* 브랜치의 변경 사항을 dev 브랜치로 PR 생성
       - name: Create pull request from feat/* to dev
         if: env.has_new_commits == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}  # 변경된 토큰을 사용
         run: |
           echo "Attempting to create PR from feat/* branches to dev."
           
@@ -64,7 +64,7 @@ jobs:
       - name: Check and Merge PR if exists
         if: env.has_new_commits == 'true'
         env:
-          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}  # 변경된 토큰을 사용
         run: |
           # Open PR 상태 확인
           OPEN_PR=$(gh pr list --state open --base dev --head "feat/*" -q ".[0].url" || echo "")
@@ -75,7 +75,7 @@ jobs:
             gh pr merge "$OPEN_PR" --auto || echo "Merge failed."
           else
             echo "No open PR found for feat/* to dev. Skipping merge."
-          
+
       # Docker 빌드 및 Docker Hub 푸시
       - name: Log in to Docker Hub
         if: env.has_new_commits == 'true'
