@@ -2,7 +2,7 @@ name: Auto Merge, Build, and Deploy to Docker Hub and ECR
 
 on:
   schedule:
-    - cron: '20 3 * * *' 
+    - cron: '45 3 * * *' # 매일 12:20 KST (UTC 03:20)
   workflow_dispatch: # 수동 실행 가능
 
 permissions:
@@ -24,6 +24,7 @@ jobs:
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
+
       # feat/* 또는 새로 생긴 브랜치에서 dev 브랜치에 새 커밋이 있는지 확인
       - name: Check for new commits in feat/* branches
         id: check_commits
@@ -38,6 +39,7 @@ jobs:
             echo "Found new commits in feat/* branches."
             echo "has_new_commits=true" >> $GITHUB_ENV
           fi
+
       # feat/* 브랜치의 변경 사항을 dev 브랜치로 PR 생성
       - name: Create pull request from feat/* to dev
         if: env.has_new_commits == 'true'
@@ -46,6 +48,7 @@ jobs:
         run: |
           echo "Attempting to create PR from feat/* branches to dev."
           gh pr create --base dev --head "$(git for-each-ref --format '%(refname:short)' refs/remotes/origin/feat/* | head -n 1)" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" || echo "PR already exists."
+
       # PR 자동 병합 (feat/* 브랜치 유지)
       - name: Auto-merge pull request
         if: env.has_new_commits == 'true'
@@ -59,6 +62,7 @@ jobs:
           else
             echo "No PR found for feat/* to dev. Skipping merge."
           fi
+
       # Docker 빌드 및 Docker Hub 푸시
       - name: Log in to Docker Hub
         if: env.has_new_commits == 'true'
@@ -81,6 +85,8 @@ jobs:
       - name: Log in to AWS ECR
         if: env.has_new_commits == 'true'
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          region: 'ap-northeast-2'
 
       - name: Build, tag, and push Docker image to ECR
         if: env.has_new_commits == 'true'
