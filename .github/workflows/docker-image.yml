@@ -12,7 +12,7 @@ permissions:
 jobs:
   auto_merge_build_deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'  # 'main' 브랜치에서만 실행
     outputs:
       has_new_commits: ${{ env.has_new_commits }}
 
@@ -88,12 +88,19 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # 중요한 수정: dev 브랜치로 체크아웃 후 Docker 빌드
       - name: Build and push Docker image to Docker Hub
         if: env.has_new_commits == 'true'
         env:
           REACT_APP_LLM: ${{ secrets.REACT_APP_LLM }}
           REACT_APP_TTS: ${{ secrets.REACT_APP_TTS }}
         run: |
+          # dev 브랜치로 체크아웃 후 빌드
+          git fetch origin dev
+          git checkout dev
+          git pull origin dev  # 최신 dev 브랜치 가져오기
+          
+          # Docker 빌드
           docker build -t yaggugifrontapp --build-arg REACT_APP_LLM=$REACT_APP_LLM --build-arg REACT_APP_TTS=$REACT_APP_TTS .
           docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
