@@ -64,7 +64,7 @@ jobs:
       - name: Check and Merge PR if exists
         if: env.has_new_commits == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
         run: |
           # Open PR 상태 확인
           OPEN_PR=$(gh pr list --state open --base dev --head "feat/*" -q ".[0].url" || echo "")
