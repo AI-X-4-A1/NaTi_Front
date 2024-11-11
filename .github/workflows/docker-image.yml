@@ -25,7 +25,7 @@ jobs:
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
-      
+
       # feat/* 브랜치에서 dev 브랜치에 새 커밋이 있는지 확인
       - name: Check for new commits in feat/* branches
         id: check_commits
