@@ -2,7 +2,7 @@ name: Auto Merge, Build, and Deploy to Docker Hub and ECR
 
 on:
   schedule:
-    - cron: '45 3 * * *' # 매일 12:20 KST (UTC 03:20)
+    - cron: '05 2 * * *' # 매일 12:20 KST (UTC 03:20)
   workflow_dispatch: # 수동 실행 가능
 
 permissions:
@@ -81,13 +81,24 @@ jobs:
           docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
 
-      # AWS ECR 로그인 및 푸시
+      # AWS 자격 증명 및 리전 설정
+      - name: Configure AWS credentials
+        if: env.has_new_commits == 'true'
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # AWS ECR 로그인
       - name: Log in to AWS ECR
         if: env.has_new_commits == 'true'
         uses: aws-actions/amazon-ecr-login@v1
         with:
-          region: 'ap-northeast-2'
+          registry-type: private
+          skip-logout: false
 
+      # Build, tag, and push Docker image to ECR
       - name: Build, tag, and push Docker image to ECR
         if: env.has_new_commits == 'true'
         run: |
