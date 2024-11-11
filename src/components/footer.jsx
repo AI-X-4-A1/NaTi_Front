@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Button from "react-bootstrap/Button";
 
@@ -10,7 +10,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 
 function Footer() {
   const location = useLocation();
-  const [localPath, setLocalPath] = useEffect();
+  const [localPath, setLocalPath] = useState();
 
   const handlePath = (choice) => {
     setLocalPath(choice);

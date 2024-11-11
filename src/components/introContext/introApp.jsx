@@ -3,11 +3,13 @@ import React from "react";
 function IntroApp() {
   return (
     <div>
-      <div className="title">약국이 소개</div>
+
+      <div className="title">꾹꾹이 소개</div>
+
       <div className="context">
         <ul>
           <li>
-            약국이는 인공지능 기술을 활용하여 개인 맞춤형 영양제 정보를
+            형석이 형석이는 인공지능 기술을 활용하여 개인 맞춤형 영양제 정보를
             제공하고, 사용자가 영양제 섭취를 체계적으로 관리할 수 있도록 돕는
             종합 건강 관리 앱입니다.
           </li>

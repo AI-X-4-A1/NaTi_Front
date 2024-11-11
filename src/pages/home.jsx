@@ -49,8 +49,8 @@ function Main() {
   );
 
   const contentOptions = [
-    { key: CONTENT_KEYS.INTRO_SUGGEST, label: "추천 기능이" },
-    { key: CONTENT_KEYS.INTRO_SEARCH, label: "검색 기능이" },
+    { key: CONTENT_KEYS.INTRO_SUGGEST, label: "추천 기능" },
+    { key: CONTENT_KEYS.INTRO_SEARCH, label: "검색 기능" },
     { key: CONTENT_KEYS.INTRO_PLANNER, label: "플래너 기능" },
     { key: CONTENT_KEYS.INTRO_APP, label: "약국이 소개" },
   ];

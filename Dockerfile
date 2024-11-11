@@ -29,7 +29,7 @@ RUN npm install -g serve && npm cache clean --force
 COPY --from=build /app/build /app/build
 
 # 포트 3000 노출
-EXPOSE 3000
+EXPOSE 3010
 
 # `serve`로 정적 파일 서빙
-CMD ["serve", "-s", "/app/build", "-l", "3000"]
+CMD ["serve", "-s", "/app/build", "-l", "3010"]
