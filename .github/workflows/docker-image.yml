@@ -2,7 +2,7 @@ name: Auto Merge, Build, and Deploy to Docker Hub and ECR
 
 on:
   schedule:
-    - cron: '20 3 * * *' 
+    - cron: '05 2 * * *' # 매일 12:20 KST (UTC 03:20)
   workflow_dispatch: # 수동 실행 가능
 
 permissions:
@@ -24,6 +24,7 @@ jobs:
         run: |
           git config --global user.email "power4206@gmail.com"
           git config --global user.name "KHY90"
+
       # feat/* 또는 새로 생긴 브랜치에서 dev 브랜치에 새 커밋이 있는지 확인
       - name: Check for new commits in feat/* branches
         id: check_commits
@@ -37,7 +38,7 @@ jobs:
           else
             echo "Found new commits in feat/* branches."
             echo "has_new_commits=true" >> $GITHUB_ENV
-          fi
+
       # feat/* 브랜치의 변경 사항을 dev 브랜치로 PR 생성
       - name: Create pull request from feat/* to dev
         if: env.has_new_commits == 'true'
@@ -45,20 +46,34 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Attempting to create PR from feat/* branches to dev."
-          gh pr create --base dev --head "$(git for-each-ref --format '%(refname:short)' refs/remotes/origin/feat/* | head -n 1)" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" || echo "PR already exists."
+          
+          # feat/* 브랜치 중 첫 번째를 PR 대상으로 사용
+          HEAD_BRANCH=$(git for-each-ref --format '%(refname:short)' refs/remotes/origin/feat/* | head -n 1)
+          
+          # PR을 생성할 때, 반드시 PR이 만들어졌는지 확인
+          PR_URL=$(gh pr create --base dev --head "$HEAD_BRANCH" --title "Auto merge feat/* branches into dev" --body "자동 생성된 Pull Request" --json url -q ".url" || echo "")
+          
+          if [ -n "$PR_URL" ]; then
+            echo "PR created successfully: $PR_URL"
+          else
+            echo "PR creation failed or PR already exists."
+
       # PR 자동 병합 (feat/* 브랜치 유지)
-      - name: Auto-merge pull request
+      - name: Check and Merge PR if exists
         if: env.has_new_commits == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_URL=$(gh pr view dev --json url --jq '.url' || echo "")
-          if [ -n "$PR_URL" ]; then
-            echo "Merging PR: $PR_URL"
-            gh pr merge "$PR_URL" --auto || echo "Merge failed."
+          # Open PR 상태 확인
+          OPEN_PR=$(gh pr list --state open --base dev --head "feat/*" --json url -q ".[0].url" || echo "")
+          
+          if [ -n "$OPEN_PR" ]; then
+            echo "Found open PR: $OPEN_PR"
+            echo "Merging PR: $OPEN_PR"
+            gh pr merge "$OPEN_PR" --auto || echo "Merge failed."
           else
-            echo "No PR found for feat/* to dev. Skipping merge."
-          fi
+            echo "No open PR found for feat/* to dev. Skipping merge."
+          
       # Docker 빌드 및 Docker Hub 푸시
       - name: Log in to Docker Hub
         if: env.has_new_commits == 'true'
@@ -77,11 +92,24 @@ jobs:
           docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
 
-      # AWS ECR 로그인 및 푸시
+      # AWS 자격 증명 및 리전 설정
+      - name: Configure AWS credentials
+        if: env.has_new_commits == 'true'
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # AWS ECR 로그인
       - name: Log in to AWS ECR
         if: env.has_new_commits == 'true'
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry-type: private
+          skip-logout: false
 
+      # Build, tag, and push Docker image to ECR
       - name: Build, tag, and push Docker image to ECR
         if: env.has_new_commits == 'true'
         run: |
