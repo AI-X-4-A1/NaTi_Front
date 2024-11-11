@@ -1,2 +1,3 @@
 # NaTi_Back
-NaTi프로젝트 백엔드 레포
+NaTi프로젝트 프론트 레포
+
