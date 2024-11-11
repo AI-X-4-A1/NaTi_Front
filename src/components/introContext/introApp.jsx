@@ -3,7 +3,7 @@ import React from "react";
 function IntroApp() {
   return (
     <div>
-      <div className="title">꾹꾹이222 소개</div>
+      <div className="title">꾹꾹이333 소개</div>
       <div className="context">
         <ul>
           <li>
