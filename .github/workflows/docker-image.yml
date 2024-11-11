@@ -13,7 +13,6 @@ jobs:
   auto_merge_build_deploy:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'  # 'main' 브랜치에서만 실행
-    if: github.ref == 'refs/heads/main'  # 'main' 브랜치에서만 실행
     outputs:
       has_new_commits: ${{ env.has_new_commits }}
 
