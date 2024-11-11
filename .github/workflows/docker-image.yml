@@ -2,7 +2,7 @@ name: Auto Merge, Build, and Deploy to Docker Hub and ECR
 
 on:
   schedule:
-    - cron: '0 14 * * *' # 매일 23:00 UTC (KST 저녁 11시)
+    - cron: '20 3 * * *' 
   workflow_dispatch: # 수동 실행 가능
 
 permissions:
