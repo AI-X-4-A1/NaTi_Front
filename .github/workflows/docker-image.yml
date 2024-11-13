@@ -1,4 +1,4 @@
-name: Auto Merge, Build, and Deploy to Docker Hub
+name: Auto Merge, Build, and Deploy to AWS ECR and ECS
 
 on:
   schedule:
@@ -41,7 +41,7 @@ jobs:
             echo "has_new_commits=true" >> $GITHUB_ENV
           fi
 
-      # 각 feat/* 브랜치의 변경 사항을 dev 브랜치로 PR 생성 또는 기존 PR 확인 후 병합
+      # PR 생성 및 병합
       - name: Create or Find PRs from feat/* branches to dev
         if: env.has_new_commits == 'true'
         env:
@@ -62,7 +62,6 @@ jobs:
             echo "PR_URL=$PR_URL" >> $GITHUB_ENV
           done
 
-      # 모든 PR 자동 병합 (feat/* 브랜치 유지)
       - name: Auto-merge pull requests
         if: env.has_new_commits == 'true'
         env:
@@ -80,45 +79,40 @@ jobs:
             fi
           done
 
-      # Docker 빌드 및 Docker Hub 푸시
-      - name: Log in to Docker Hub
+      # AWS ECR 로그인 및 이미지 푸시
+      - name: Log in to Amazon ECR
         if: env.has_new_commits == 'true'
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build and push Docker image to Docker Hub
+      - name: Build and Push Docker image to AWS ECR
         if: env.has_new_commits == 'true'
-        env:
-          REACT_APP_LLM: ${{ secrets.REACT_APP_LLM }}
-          REACT_APP_TTS: ${{ secrets.REACT_APP_TTS }}
         run: |
-          git checkout dev  # dev 브랜치로 체크아웃
+          # AWS ECR 리포지토리 URI
+          ECR_REPOSITORY_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/yaggugifrontapp"
+          
+          # dev 브랜치 체크아웃
+          git checkout dev
+          
+          # Docker 이미지 빌드
           docker build -t yaggugifrontapp --build-arg REACT_APP_LLM=$REACT_APP_LLM --build-arg REACT_APP_TTS=$REACT_APP_TTS .
-          docker tag yaggugifrontapp:latest ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+          
+          # Docker 이미지 태그 지정
+          docker tag yaggugifrontapp:latest $ECR_REPOSITORY_URI:latest
 
-  deploy_local:
-    runs-on: self-hosted
-    needs: auto_merge_build_deploy
-    if: needs.auto_merge_build_deploy.outputs.has_new_commits == 'true'
-    steps:
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          # ECR에 이미지 푸시
+          docker push $ECR_REPOSITORY_URI:latest
 
-      - name: Remove existing Docker container and image
-        shell: cmd
+      # ECS 서비스 업데이트
+      - name: Update ECS service with new Docker image
+        if: env.has_new_commits == 'true'
         run: |
-          docker stop yaggugifrontapp 2>NUL || echo "Container not running or already stopped"
-          docker rm yaggugifrontapp 2>NUL || echo "Container not found or already removed"
-          docker rmi ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest 2>NUL || echo "Image not found or already removed"
-
-      - name: Pull Docker image from Docker Hub and run container
-        shell: cmd
-        run: |
-          docker pull ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
-          docker run -d -p 3010:3010 --name yaggugifrontapp ${{ secrets.DOCKER_USERNAME }}/yaggugifrontapp:latest
+          # ECS 클러스터 이름과 서비스 이름 설정
+          ECS_CLUSTER_NAME="yaggugi-cluster"
+          ECS_SERVICE_NAME="yaggugifrontapp-service"
+          
+          # ECS 서비스를 새 Docker 이미지로 업데이트
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER_NAME \
+            --service $ECS_SERVICE_NAME \
+            --force-new-deployment \
+            --region ${{ secrets.AWS_REGION }}
